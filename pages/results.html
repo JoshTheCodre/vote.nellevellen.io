@@ -14,24 +14,24 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     * { font-family: 'Inter', sans-serif; }
-    body { background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%); background-attachment: fixed; }
+    body { background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 50%, #f0f0f0 100%); background-attachment: fixed; }
   </style>
 </head>
 <body class="min-h-screen text-white">
   <!-- Navigation -->
-  <nav class="fixed top-0 left-0 right-0 z-40 backdrop-blur-xl bg-white/10 border-b border-white/20 shadow-lg">
+  <nav class="fixed top-0 left-0 right-0 z-40 bg-white/95 border-b border-gray-200 shadow-md">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between h-16">
-        <a href="../index.html" class="flex items-center gap-2 font-bold text-lg text-white hover:opacity-90 transition">
+      <div class="flex items-center justify-between h-16 w-full">
+        <a href="../index.html" class="flex items-center gap-2 font-bold text-lg text-gray-900 hover:text-green-600 transition flex-shrink-0">
           <img src="../assets/NACOS.png" alt="NACOS Logo" class="h-10 w-10 rounded-full drop-shadow object-cover">
           <span>NACOS Rivers</span>
         </a>
-        <div class="hidden md:flex gap-8">
-          <a href="../index.html" class="text-white font-medium pb-1 border-b-2 border-transparent hover:border-green-400 transition-colors duration-200" id="nav-home">Home</a>
-          <a href="results.html" class="text-white font-medium pb-1 border-b-2 border-green-400" id="nav-results">Live Results</a>
-          <a href="login.html" class="text-white font-medium pb-1 border-b-2 border-transparent hover:border-green-400 transition-colors duration-200" id="nav-login">Login</a>
+        <div class="hidden md:flex gap-8 items-center flex-1 justify-center">
+          <a href="../index.html" class="text-gray-700 font-medium pb-1 border-b-2 border-transparent hover:border-green-600 transition-colors duration-200 whitespace-nowrap" id="nav-home">Home</a>
+          <a href="results.html" class="text-gray-900 font-medium pb-1 border-b-2 border-green-600 whitespace-nowrap" id="nav-results">Live Results</a>
+          <a href="login.html" class="text-gray-700 font-medium pb-1 border-b-2 border-transparent hover:border-green-600 transition-colors duration-200 whitespace-nowrap" id="nav-login">Login</a>
         </div>
-        <button id="mobileMenuBtn" class="md:hidden text-white hover:bg-white/10 p-2 rounded-lg transition">
+        <button id="mobileMenuBtn" class="md:hidden text-gray-900 hover:bg-gray-100 p-2 rounded-lg transition">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
           </svg>
@@ -39,9 +39,9 @@
       </div>
     </div>
     <!-- Mobile Menu -->
-    <div id="mobileMenu" class="hidden md:hidden bg-black/30 backdrop-blur px-4 py-3 border-t border-white/10">
-      <a href="../index.html" class="block py-2.5 text-white hover:text-green-100 transition font-medium">Home</a>
-      <a href="login.html" class="block py-2.5 text-white hover:text-green-100 transition font-medium">Login</a>
+    <div id="mobileMenu" class="hidden md:hidden bg-white/90 px-4 py-3 border-t border-gray-200">
+      <a href="../index.html" class="block py-2.5 text-gray-900 hover:text-green-600 transition font-medium">Home</a>
+      <a href="login.html" class="block py-2.5 text-gray-700 hover:text-green-600 transition font-medium">Login</a>
     </div>
   </nav>
 
@@ -51,18 +51,18 @@
 
       <!-- All Candidates Table -->
       <section>
-        <h2 class="text-2xl sm:text-3xl font-bold mb-6 text-white flex items-center gap-3">
+        <h2 class="text-2xl sm:text-3xl font-bold mb-6 text-gray-900 flex items-center gap-3">
           <i data-lucide="trophy" class="w-8 h-8"></i> All Candidates
         </h2>
-        <div class="backdrop-blur-xl bg-white/15 border border-white/25 rounded-2xl overflow-hidden shadow-lg">
+        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-md">
           <div class="overflow-x-auto">
-            <table class="w-full text-white">
+            <table class="w-full text-gray-900">
               <thead>
-                <tr class="border-b border-white/20">
-                  <th class="text-left px-6 py-4 font-semibold text-white/90">#</th>
-                  <th class="text-left px-6 py-4 font-semibold text-white/90">Name</th>
-                  <th class="text-left px-6 py-4 font-semibold text-white/90">Position</th>
-                  <th class="text-right px-6 py-4 font-semibold text-white/90">Votes %</th>
+                <tr class="border-b border-gray-200 bg-gray-50">
+                  <th class="text-left px-6 py-4 font-semibold text-gray-900">#</th>
+                  <th class="text-left px-6 py-4 font-semibold text-gray-900">Name</th>
+                  <th class="text-left px-6 py-4 font-semibold text-gray-900">Position</th>
+                  <th class="text-right px-6 py-4 font-semibold text-gray-900">Votes %</th>
                 </tr>
               </thead>
               <tbody id="allCandidatesTable"></tbody>

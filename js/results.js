@@ -62,16 +62,16 @@ function renderResults(data) {
         const percentage = totalVotes > 0 ? ((candidateVotes / totalVotes) * 100).toFixed(1) : 0;
         
         tbody.append(`
-          <tr class="border-b border-white/20 hover:bg-white/5 transition duration-200">
-            <td class="px-6 py-3 font-medium">${idx + 1}</td>
-            <td class="px-6 py-3">${c.name}</td>
-            <td class="px-6 py-3 text-sm text-white/75">${positionName}</td>
+          <tr class="border-b border-gray-200 hover:bg-gray-50 transition duration-200">
+            <td class="px-6 py-3 font-medium text-gray-900">${idx + 1}</td>
+            <td class="px-6 py-3 text-gray-900">${c.name}</td>
+            <td class="px-6 py-3 text-sm text-gray-600">${positionName}</td>
             <td class="px-6 py-3 text-right">
               <div class="flex items-center justify-end gap-3">
-                <div class="w-32 bg-white/10 rounded-full h-2 border border-white/20">
-                  <div class="bg-gradient-to-r from-green-400 to-emerald-400 h-full rounded-full transition-all duration-300" style="width: ${percentage}%"></div>
+                <div class="w-32 bg-gray-200 rounded-full h-2 border border-gray-300">
+                  <div class="bg-gradient-to-r from-green-500 to-green-600 h-full rounded-full transition-all duration-300" style="width: ${percentage}%"></div>
                 </div>
-                <span class="font-semibold text-green-300 min-w-12 text-right">${percentage}%</span>
+                <span class="font-semibold text-green-600 min-w-12 text-right">${percentage}%</span>
               </div>
             </td>
           </tr>

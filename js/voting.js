@@ -55,6 +55,7 @@ function castVote(position_id, position_name, candidate_id, candidate_name, sele
       gravity: 'top',
       position: 'center',
       backgroundColor: '#f59e0b',
+      color: '#000',
       stopOnFocus: true
     }).showToast();
     return;
@@ -87,6 +88,7 @@ function castVote(position_id, position_name, candidate_id, candidate_name, sele
     gravity: 'top',
     position: 'center',
     backgroundColor: '#10b981',
+    color: '#fff',
     stopOnFocus: true
   }).showToast();
   
@@ -109,6 +111,7 @@ function handleVoteClick(p, candidate_id, candidate_name, selectEl, voteBtn) {
       gravity: 'top',
       position: 'center',
       backgroundColor: '#f59e0b',
+      color: '#000',
       stopOnFocus: true
     }).showToast();
     return;
@@ -121,6 +124,7 @@ function handleVoteClick(p, candidate_id, candidate_name, selectEl, voteBtn) {
       gravity: 'top',
       position: 'center',
       backgroundColor: '#f59e0b',
+      color: '#000',
       stopOnFocus: true
     }).showToast();
     return;
