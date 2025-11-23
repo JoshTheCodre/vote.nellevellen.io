@@ -32,7 +32,8 @@ function initCountdown() {
 
 // Load and render voting positions
 function loadPositions() {
-  $.get('data/positions.json', function(r) {
+  const path = window.location.pathname.includes('/pages/') ? '../data/positions.json' : 'data/positions.json';
+  $.get(path, function(r) {
     if (!r.ok) return;
     renderPositions(r.positions);
   }).fail(function(err) {
