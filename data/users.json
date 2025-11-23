@@ -1,0 +1,213 @@
+{
+  "ok": true,
+  "users": [
+    {
+      "id": "TIGER-001",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=TIGER-001"
+    },
+    {
+      "id": "PANDA-002",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=PANDA-002"
+    },
+    {
+      "id": "EAGLE-003",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=EAGLE-003"
+    },
+    {
+      "id": "LION-004",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=LION-004"
+    },
+    {
+      "id": "WOLF-005",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=WOLF-005"
+    },
+    {
+      "id": "BEAR-006",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=BEAR-006"
+    },
+    {
+      "id": "FOX-007",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=FOX-007"
+    },
+    {
+      "id": "HAWK-008",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=HAWK-008"
+    },
+    {
+      "id": "SHARK-009",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=SHARK-009"
+    },
+    {
+      "id": "CHEETAH-010",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=CHEETAH-010"
+    },
+    {
+      "id": "ZEBRA-011",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=ZEBRA-011"
+    },
+    {
+      "id": "GIRAFFE-012",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=GIRAFFE-012"
+    },
+    {
+      "id": "LEOPARD-013",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=LEOPARD-013"
+    },
+    {
+      "id": "JAGUAR-014",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=JAGUAR-014"
+    },
+    {
+      "id": "PANTHER-015",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=PANTHER-015"
+    },
+    {
+      "id": "COUGAR-016",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=COUGAR-016"
+    },
+    {
+      "id": "LYNX-017",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=LYNX-017"
+    },
+    {
+      "id": "PUMA-018",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=PUMA-018"
+    },
+    {
+      "id": "MONKEY-019",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=MONKEY-019"
+    },
+    {
+      "id": "PENGUIN-020",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=PENGUIN-020"
+    },
+    {
+      "id": "DOLPHIN-021",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=DOLPHIN-021"
+    },
+    {
+      "id": "WHALE-022",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=WHALE-022"
+    },
+    {
+      "id": "OCTOPUS-023",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=OCTOPUS-023"
+    },
+    {
+      "id": "SQUID-024",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=SQUID-024"
+    },
+    {
+      "id": "WALRUS-025",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=WALRUS-025"
+    },
+    {
+      "id": "SEAL-026",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=SEAL-026"
+    },
+    {
+      "id": "OWL-027",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=OWL-027"
+    },
+    {
+      "id": "PARROT-028",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=PARROT-028"
+    },
+    {
+      "id": "RAVEN-029",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=RAVEN-029"
+    },
+    {
+      "id": "CROW-030",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=CROW-030"
+    },
+    {
+      "id": "PEACOCK-031",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=PEACOCK-031"
+    },
+    {
+      "id": "FLAMINGO-032",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=FLAMINGO-032"
+    },
+    {
+      "id": "SWAN-033",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=SWAN-033"
+    },
+    {
+      "id": "DUCK-034",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=DUCK-034"
+    },
+    {
+      "id": "GOOSE-035",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=GOOSE-035"
+    },
+    {
+      "id": "SWAN-036",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=SWAN-036"
+    },
+    {
+      "id": "CRANE-037",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=CRANE-037"
+    },
+    {
+      "id": "HERON-038",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=HERON-038"
+    },
+    {
+      "id": "STORK-039",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=STORK-039"
+    },
+    {
+      "id": "IBIS-040",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=IBIS-040"
+    },
+    {
+      "id": "KINGFISHER-041",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=KINGFISHER-041"
+    },
+    {
+      "id": "TOUCAN-042",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=TOUCAN-042"
+    },
+    {
+      "id": "ROBIN-043",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=ROBIN-043"
+    },
+    {
+      "id": "SPARROW-044",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=SPARROW-044"
+    },
+    {
+      "id": "FINCH-045",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=FINCH-045"
+    },
+    {
+      "id": "LARK-046",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=LARK-046"
+    },
+    {
+      "id": "THRUSH-047",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=THRUSH-047"
+    },
+    {
+      "id": "CANARY-048",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=CANARY-048"
+    },
+    {
+      "id": "BUNTING-049",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=BUNTING-049"
+    },
+    {
+      "id": "NIGHTINGALE-050",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=NIGHTINGALE-050"
+    },
+    {
+      "id": "LOON-051",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=LOON-051"
+    },
+    {
+      "id": "GREBE-052",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=GREBE-052"
+    }
+  ]
+}

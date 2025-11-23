@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Live Results – NACOS Rivers Voting Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Live voting results for NACOS Rivers election.">
+  <meta name="theme-color" content="#10b981">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    * { font-family: 'Inter', sans-serif; }
+    body { background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%); background-attachment: fixed; }
+  </style>
+</head>
+<body class="min-h-screen text-white">
+  <!-- Navigation -->
+  <nav class="fixed top-0 left-0 right-0 z-40 backdrop-blur-xl bg-white/10 border-b border-white/20 shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <a href="../index.html" class="flex items-center gap-2 font-bold text-lg text-white hover:opacity-90 transition">
+          <img src="../assets/NACOS.png" alt="NACOS Logo" class="h-10 w-10 rounded-full drop-shadow object-cover">
+          <span>NACOS Rivers</span>
+        </a>
+        <div class="hidden md:flex gap-8">
+          <a href="../index.html" class="text-white font-medium pb-1 border-b-2 border-transparent hover:border-green-400 transition-colors duration-200" id="nav-home">Home</a>
+          <a href="results.html" class="text-white font-medium pb-1 border-b-2 border-green-400" id="nav-results">Live Results</a>
+          <a href="login.html" class="text-white font-medium pb-1 border-b-2 border-transparent hover:border-green-400 transition-colors duration-200" id="nav-login">Login</a>
+        </div>
+        <button id="mobileMenuBtn" class="md:hidden text-white hover:bg-white/10 p-2 rounded-lg transition">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <!-- Mobile Menu -->
+    <div id="mobileMenu" class="hidden md:hidden bg-black/30 backdrop-blur px-4 py-3 border-t border-white/10">
+      <a href="../index.html" class="block py-2.5 text-white hover:text-green-100 transition font-medium">Home</a>
+      <a href="login.html" class="block py-2.5 text-white hover:text-green-100 transition font-medium">Login</a>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="pt-24 pb-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto">
+
+      <!-- All Candidates Table -->
+      <section>
+        <h2 class="text-2xl sm:text-3xl font-bold mb-6 text-white flex items-center gap-3">
+          <i data-lucide="trophy" class="w-8 h-8"></i> All Candidates
+        </h2>
+        <div class="backdrop-blur-xl bg-white/15 border border-white/25 rounded-2xl overflow-hidden shadow-lg">
+          <div class="overflow-x-auto">
+            <table class="w-full text-white">
+              <thead>
+                <tr class="border-b border-white/20">
+                  <th class="text-left px-6 py-4 font-semibold text-white/90">#</th>
+                  <th class="text-left px-6 py-4 font-semibold text-white/90">Name</th>
+                  <th class="text-left px-6 py-4 font-semibold text-white/90">Position</th>
+                  <th class="text-right px-6 py-4 font-semibold text-white/90">Votes %</th>
+                </tr>
+              </thead>
+              <tbody id="allCandidatesTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    lucide.createIcons();
+    
+    document.getElementById('mobileMenuBtn').addEventListener('click', function() {
+      const menu = document.getElementById('mobileMenu');
+      menu.classList.toggle('hidden');
+    });
+  </script>
+  <!-- Modular JavaScript - Load in order -->
+  <script src="../js/voting.js"></script>
+  <script src="../js/candidates.js"></script>
+  <script src="../js/results.js"></script>
+  <script src="../js/app.js"></script>
+</body>
+</html>
