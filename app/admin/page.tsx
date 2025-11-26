@@ -43,6 +43,11 @@ export default function AdminPage() {
     timeRemaining: 'Loading...'
   });
 
+  // Admin authentication
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [adminKeyInput, setAdminKeyInput] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+
   // Candidate management state
   const [positions, setPositions] = useState<Position[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -61,6 +66,38 @@ export default function AdminPage() {
     order: 0
   });
   const [expandedPositions, setExpandedPositions] = useState<Set<string>>(new Set());
+
+  // Verify admin key
+  const verifyAdminKey = async () => {
+    if (!adminKeyInput.trim()) {
+      toast.error('Please enter an admin key');
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      const adminDoc = await getDocs(collection(db, 'admin'));
+      let storedKey = '';
+      
+      adminDoc.forEach(doc => {
+        if (doc.id === 'access_key') {
+          storedKey = doc.data().key;
+        }
+      });
+
+      if (adminKeyInput === storedKey) {
+        setIsAuthenticated(true);
+        toast.success('Access granted!');
+      } else {
+        toast.error('Invalid admin key');
+      }
+    } catch (error) {
+      console.error('Error verifying key:', error);
+      toast.error('Error verifying admin key');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   useEffect(() => {
     loadElectionStatus();
@@ -272,12 +309,12 @@ export default function AdminPage() {
       return;
     }
 
-    if (!confirm('Are you sure you want to extend the election by 1 hour?')) {
+    if (!confirm('Are you sure you want to extend the election by 10 minutes?')) {
       return;
     }
 
     const currentEndTime = new Date(config.endTime);
-    const newEndTime = new Date(currentEndTime.getTime() + (1 * 60 * 60 * 1000));
+    const newEndTime = new Date(currentEndTime.getTime() + (10 * 60 * 1000));
 
     const updatedConfig: ElectionConfig = {
       ...config,
@@ -287,7 +324,7 @@ export default function AdminPage() {
     try {
       const success = await updateElectionConfig(updatedConfig);
       if (success) {
-        toast.success('Election extended by 1 hour');
+        toast.success('Election extended by 10 minutes');
         loadElectionStatus();
       } else {
         toast.error('Failed to extend election');
@@ -512,6 +549,49 @@ export default function AdminPage() {
 
   return (
     <div className="bg-gradient-to-br from-green-50 via-white to-green-50 min-h-screen">
+      {!isAuthenticated ? (
+        <div className="min-h-screen flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+            <div className="text-center mb-8">
+              <div className="flex justify-center mb-6">
+                <Image src="/NACOS.png" alt="NACOS Logo" width={80} height={80} className="rounded-full shadow-lg" unoptimized />
+              </div>
+              <h1 className="text-3xl font-bold text-gray-800 mb-2">Admin Portal</h1>
+              <p className="text-gray-600">Enter your admin key to continue</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="adminKey" className="block text-sm font-medium text-gray-700 mb-2">
+                  Admin Key
+                </label>
+                <input
+                  type="password"
+                  id="adminKey"
+                  value={adminKeyInput}
+                  onChange={(e) => setAdminKeyInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && verifyAdminKey()}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  placeholder="Enter admin key"
+                  disabled={isVerifying}
+                />
+              </div>
+
+              <button
+                onClick={verifyAdminKey}
+                disabled={isVerifying}
+                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
+              >
+                {isVerifying ? 'Verifying...' : 'Access Admin Panel'}
+              </button>
+            </div>
+
+            <p className="text-center text-sm text-gray-500 mt-6">
+              🔒 Admin key can only be changed in Firestore database
+            </p>
+          </div>
+        </div>
+      ) : (
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
@@ -620,7 +700,7 @@ export default function AdminPage() {
                 className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
               >
                 <Clock className="w-4 h-4" />
-                Extend 1 Hour
+                Extend 10 Minutes
               </button>
 
               <button
@@ -704,8 +784,15 @@ export default function AdminPage() {
                         </svg>
                         <div>
                           <p className="font-semibold text-gray-800">{position.title}</p>
-                          <p className="text-sm text-gray-500">
-                            Order: {position.order} • {positionCandidates.length} candidate{positionCandidates.length !== 1 ? 's' : ''}
+                          <p className="text-sm text-gray-500 flex items-center gap-2">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border border-purple-200">
+                              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+                              </svg>
+                              Order {position.order}
+                            </span>
+                            <span>•</span>
+                            <span>{positionCandidates.length} candidate{positionCandidates.length !== 1 ? 's' : ''}</span>
                           </p>
                         </div>
                       </button>
@@ -793,7 +880,6 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
-      </div>
       
       {/* Candidate Modal */}
       {showCandidateModal && (
@@ -917,6 +1003,8 @@ export default function AdminPage() {
       )}
       
       <Footer />
+      </div>
+      )}
     </div>
   );
 }
