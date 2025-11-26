@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { Trophy } from 'lucide-react';
-import { getPositions, getAllCandidates, getVotingResults, Position, Candidate, Vote } from '@/lib/firebase';
+import { getPositions, getAllCandidates, Position, Candidate, Vote } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 
 interface CandidateResult extends Candidate {
   positionTitle: string;
@@ -15,27 +17,62 @@ interface CandidateResult extends Candidate {
 export default function ResultsPage() {
   const [results, setResults] = useState<CandidateResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
-    loadResults();
-    
-    // Auto-refresh every 5 seconds
-    const interval = setInterval(() => {
-      loadResults();
-    }, 5000);
+    // Load positions and candidates once
+    const loadInitialData = async () => {
+      const [positionsData, candidatesData] = await Promise.all([
+        getPositions(),
+        getAllCandidates()
+      ]);
+      setPositions(positionsData);
+      setCandidates(candidatesData);
+    };
 
-    return () => clearInterval(interval);
+    loadInitialData();
+
+    // Set up real-time listener for votes
+    const votesQuery = query(collection(db, 'votes'));
+    const unsubscribe = onSnapshot(votesQuery, (snapshot) => {
+      setIsLive(true);
+      const votes: Vote[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Vote));
+
+      calculateResults(votes);
+    }, (error) => {
+      console.error('Error listening to votes:', error);
+      setIsLive(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const loadResults = async () => {
-    try {
-      // Fetch all data
-      const [positions, candidates, votes] = await Promise.all([
-        getPositions(),
-        getAllCandidates(),
-        getVotingResults()
-      ]);
+  useEffect(() => {
+    // Recalculate when positions or candidates change
+    if (positions.length > 0 && candidates.length > 0) {
+      // Trigger initial calculation
+      const votesQuery = query(collection(db, 'votes'));
+      const unsubscribe = onSnapshot(votesQuery, (snapshot) => {
+        const votes: Vote[] = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as Vote));
+        calculateResults(votes);
+      });
 
+      return () => unsubscribe();
+    }
+  }, [positions, candidates]);
+
+  const calculateResults = (votes: Vote[]) => {
+    if (positions.length === 0 || candidates.length === 0) return;
+
+    try {
       // Filter out "PASS" votes
       const validVotes = votes.filter((vote: Vote) => vote.candidate_id !== 'PASS');
 
@@ -63,10 +100,9 @@ export default function ResultsPage() {
       });
 
       setResults(candidateResults);
-    } catch (error) {
-      console.error('Error loading results:', error);
-    } finally {
       setIsLoading(false);
+    } catch (error) {
+      console.error('Error calculating results:', error);
     }
   };
 
@@ -77,9 +113,17 @@ export default function ResultsPage() {
       <main className="pt-24 pb-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <section>
-            <h2 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-900 flex items-center gap-3">
-              <Trophy className="w-8 h-8" /> All Candidates
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-3">
+                <Trophy className="w-8 h-8" /> All Candidates
+              </h2>
+              {isLive && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  <span className="text-xs font-semibold text-green-700">LIVE</span>
+                </div>
+              )}
+            </div>
             
             {isLoading ? (
               <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center">
