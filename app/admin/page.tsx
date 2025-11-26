@@ -613,9 +613,6 @@ export default function AdminPage() {
         }
       };
       
-      // Add watermark to first page
-      addWatermark();
-      
       // Header
       doc.setFontSize(20);
       doc.setFont('helvetica', 'bold');
@@ -641,7 +638,6 @@ export default function AdminPage() {
         // Check if we need a new page
         if (yPosition > 250) {
           doc.addPage();
-          addWatermark(); // Add watermark to new page
           yPosition = 20;
         }
         
@@ -674,12 +670,14 @@ export default function AdminPage() {
         });
         
         yPosition = (doc as any).lastAutoTable.finalY + 10;
+        
+        // Add watermark after table (so it appears on top)
+        addWatermark();
       });
       
       // Summary statistics
       if (yPosition > 240) {
         doc.addPage();
-        addWatermark(); // Add watermark to new page
         yPosition = 20;
       }
       
@@ -698,6 +696,9 @@ export default function AdminPage() {
       doc.text(`Total Votes Cast: ${stats.votesCast}`, 20, yPosition);
       yPosition += 6;
       doc.text(`Voter Turnout: ${stats.turnoutRate}%`, 20, yPosition);
+      
+      // Add final watermark to last page
+      addWatermark();
       
       // Save PDF
       doc.save(`nacos-election-results-${new Date().toISOString().split('T')[0]}.pdf`);
