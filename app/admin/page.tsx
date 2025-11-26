@@ -572,24 +572,49 @@ export default function AdminPage() {
       // Create PDF
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
       
-      // Add NACOS Logo as letterhead
+      // Load and prepare logo for letterhead and watermark
+      let logoImageData = '';
       try {
         // Convert the public image to base64 for embedding
         const response = await fetch('/NACOS.png');
         const blob = await response.blob();
         const reader = new FileReader();
         
-        const imageData = await new Promise<string>((resolve, reject) => {
+        logoImageData = await new Promise<string>((resolve, reject) => {
           reader.onloadend = () => resolve(reader.result as string);
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
         
-        doc.addImage(imageData, 'PNG', pageWidth / 2 - 15, 10, 30, 30);
+        // Add letterhead logo on first page (centered at top)
+        doc.addImage(logoImageData, 'PNG', pageWidth / 2 - 15, 10, 30, 30);
       } catch (e) {
         console.error('Failed to load logo:', e);
       }
+      
+      // Function to add watermark to current page
+      const addWatermark = () => {
+        if (logoImageData) {
+          doc.saveGraphicsState();
+          doc.setGState(new (doc as any).GState({ opacity: 0.1 }));
+          // Center watermark (larger, faded)
+          const watermarkSize = 80;
+          doc.addImage(
+            logoImageData,
+            'PNG',
+            pageWidth / 2 - watermarkSize / 2,
+            pageHeight / 2 - watermarkSize / 2,
+            watermarkSize,
+            watermarkSize
+          );
+          doc.restoreGraphicsState();
+        }
+      };
+      
+      // Add watermark to first page
+      addWatermark();
       
       // Header
       doc.setFontSize(20);
@@ -616,6 +641,7 @@ export default function AdminPage() {
         // Check if we need a new page
         if (yPosition > 250) {
           doc.addPage();
+          addWatermark(); // Add watermark to new page
           yPosition = 20;
         }
         
@@ -653,6 +679,7 @@ export default function AdminPage() {
       // Summary statistics
       if (yPosition > 240) {
         doc.addPage();
+        addWatermark(); // Add watermark to new page
         yPosition = 20;
       }
       
