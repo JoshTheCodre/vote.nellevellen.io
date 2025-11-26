@@ -598,7 +598,7 @@ export default function AdminPage() {
       const addWatermark = () => {
         if (logoImageData) {
           doc.saveGraphicsState();
-          doc.setGState(new (doc as any).GState({ opacity: 0.1 }));
+          doc.setGState(new (doc as any).GState({ opacity: 0.3 }));
           // Center watermark (larger, faded)
           const watermarkSize = 80;
           doc.addImage(
