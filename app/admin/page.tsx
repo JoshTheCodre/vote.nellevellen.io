@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Clock, Settings, Zap, BarChart, Play, StopCircle, RefreshCw, Save, Plus, Edit2, Trash2, Users, ClipboardList } from 'lucide-react';
+import Link from 'next/link';
+import { Clock, Settings, Zap, BarChart, Play, StopCircle, RefreshCw, Save, Plus, Edit2, Trash2, Users, ClipboardList, Download, ExternalLink } from 'lucide-react';
 import Footer from '@/components/Footer';
 import { 
   getElectionConfig, 
@@ -547,6 +548,142 @@ export default function AdminPage() {
     }
   };
 
+  // Download results as CSV
+  const downloadResults = async () => {
+    try {
+      toast.loading('Generating PDF...');
+      
+      // Dynamically import jsPDF (client-side only)
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      
+      // Fetch all votes
+      const votesSnap = await getDocs(collection(db, 'votes'));
+      const votes: any[] = [];
+      votesSnap.forEach(doc => votes.push(doc.data()));
+
+      // Filter out PASS votes and count
+      const validVotes = votes.filter(vote => vote.candidate_id !== 'PASS');
+      const voteCount: Record<string, number> = {};
+      validVotes.forEach(vote => {
+        voteCount[vote.candidate_id] = (voteCount[vote.candidate_id] || 0) + 1;
+      });
+
+      // Create PDF
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      // Add NACOS Logo as letterhead
+      try {
+        // Convert the public image to base64 for embedding
+        const response = await fetch('/NACOS.png');
+        const blob = await response.blob();
+        const reader = new FileReader();
+        
+        const imageData = await new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        
+        doc.addImage(imageData, 'PNG', pageWidth / 2 - 15, 10, 30, 30);
+      } catch (e) {
+        console.error('Failed to load logo:', e);
+      }
+      
+      // Header
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('NACOS RIVERS STATE', pageWidth / 2, 50, { align: 'center' });
+      doc.setFontSize(16);
+      doc.text('Election Results', pageWidth / 2, 58, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, 65, { align: 'center' });
+      
+      // Add a line separator
+      doc.setLineWidth(0.5);
+      doc.line(20, 70, pageWidth - 20, 70);
+      
+      let yPosition = 80;
+      
+      // Add results for each position
+      positions.forEach((position, index) => {
+        const positionCandidates = candidates.filter(c => c.position_id === position.id);
+        const positionVotes = validVotes.filter(v => v.position_id === position.id).length;
+        
+        // Check if we need a new page
+        if (yPosition > 250) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        // Position title
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${index + 1}. ${position.title}`, 20, yPosition);
+        yPosition += 8;
+        
+        // Sort candidates by vote count
+        const sortedCandidates = positionCandidates
+          .map(candidate => ({
+            name: candidate.name,
+            votes: voteCount[candidate.id] || 0,
+            percentage: positionVotes > 0 ? ((voteCount[candidate.id] || 0) / positionVotes * 100).toFixed(1) + '%' : '0.0%'
+          }))
+          .sort((a, b) => b.votes - a.votes);
+        
+        // Create table
+        autoTable(doc, {
+          startY: yPosition,
+          head: [['Candidate', 'Votes', 'Percentage']],
+          body: sortedCandidates.map(c => [c.name, c.votes.toString(), c.percentage]),
+          foot: [[`Total Votes: ${positionVotes}`, '', '']],
+          theme: 'grid',
+          headStyles: { fillColor: [34, 197, 94], textColor: 255, fontStyle: 'bold' },
+          footStyles: { fillColor: [243, 244, 246], textColor: 0, fontStyle: 'bold' },
+          margin: { left: 20, right: 20 },
+          styles: { fontSize: 10 }
+        });
+        
+        yPosition = (doc as any).lastAutoTable.finalY + 10;
+      });
+      
+      // Summary statistics
+      if (yPosition > 240) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      
+      doc.setLineWidth(0.5);
+      doc.line(20, yPosition, pageWidth - 20, yPosition);
+      yPosition += 8;
+      
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Election Summary', 20, yPosition);
+      yPosition += 8;
+      
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Total Registered Voters: ${stats.totalUsers}`, 20, yPosition);
+      yPosition += 6;
+      doc.text(`Total Votes Cast: ${stats.votesCast}`, 20, yPosition);
+      yPosition += 6;
+      doc.text(`Voter Turnout: ${stats.turnoutRate}%`, 20, yPosition);
+      
+      // Save PDF
+      doc.save(`nacos-election-results-${new Date().toISOString().split('T')[0]}.pdf`);
+
+      toast.dismiss();
+      toast.success('PDF downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading results:', error);
+      toast.dismiss();
+      toast.error('Failed to download PDF');
+    }
+  };
+
   return (
     <div className="bg-gradient-to-br from-green-50 via-white to-green-50 min-h-screen">
       {!isAuthenticated ? (
@@ -598,6 +735,27 @@ export default function AdminPage() {
           <Image src="/NACOS.png" alt="NACOS Logo" width={80} height={80} className="mx-auto mb-4 drop-shadow-lg" unoptimized />
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Election Admin Panel</h1>
           <p className="text-gray-600">Manage election timing and settings</p>
+          
+          {/* Quick Actions Bar */}
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/results"
+              target="_blank"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-green-500 text-green-700 rounded-lg hover:bg-green-50 transition-all duration-200 font-medium shadow-sm hover:shadow-md group"
+            >
+              <BarChart className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              <span>View Live Results</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+            
+            <button
+              onClick={downloadResults}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md group"
+            >
+              <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+              <span>Download Results</span>
+            </button>
+          </div>
         </div>
 
         <div className="max-w-4xl mx-auto">
