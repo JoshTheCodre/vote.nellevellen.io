@@ -38,10 +38,16 @@ export default function ResultsPage() {
     const votesQuery = query(collection(db, 'votes'));
     const unsubscribe = onSnapshot(votesQuery, (snapshot) => {
       setIsLive(true);
-      const votes: Vote[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Vote));
+      const votes: Vote[] = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          voter_id: data.voter_id || '',
+          position_id: data.position_id || '',
+          candidate_id: data.candidate_id || '',
+          candidate_name: data.candidate_name || '',
+          timestamp: data.timestamp || ''
+        } as Vote;
+      });
 
       calculateResults(votes);
     }, (error) => {
@@ -58,10 +64,16 @@ export default function ResultsPage() {
       // Trigger initial calculation
       const votesQuery = query(collection(db, 'votes'));
       const unsubscribe = onSnapshot(votesQuery, (snapshot) => {
-        const votes: Vote[] = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as Vote));
+        const votes: Vote[] = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            voter_id: data.voter_id || '',
+            position_id: data.position_id || '',
+            candidate_id: data.candidate_id || '',
+            candidate_name: data.candidate_name || '',
+            timestamp: data.timestamp || ''
+          } as Vote;
+        });
         calculateResults(votes);
       });
 
