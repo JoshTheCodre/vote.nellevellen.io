@@ -2,15 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Clock, Settings, Zap, BarChart, Play, StopCircle, RefreshCw, Save } from 'lucide-react';
+import { Clock, Settings, Zap, BarChart, Play, StopCircle, RefreshCw, Save, Plus, Edit2, Trash2, Users, ClipboardList } from 'lucide-react';
 import Footer from '@/components/Footer';
 import { 
   getElectionConfig, 
   updateElectionConfig, 
   isElectionActive,
-  ElectionConfig 
+  ElectionConfig,
+  getPositions,
+  getAllCandidates,
+  Position,
+  Candidate,
+  addCandidate,
+  updateCandidate,
+  deleteCandidate,
+  addPosition,
+  updatePosition,
+  deletePosition
 } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import toast from 'react-hot-toast';
 
@@ -33,16 +43,60 @@ export default function AdminPage() {
     timeRemaining: 'Loading...'
   });
 
+  // Candidate management state
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [showCandidateModal, setShowCandidateModal] = useState(false);
+  const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
+  const [candidateForm, setCandidateForm] = useState({
+    name: '',
+    position_id: ''
+  });
+
+  // Position management state
+  const [showPositionModal, setShowPositionModal] = useState(false);
+  const [editingPosition, setEditingPosition] = useState<Position | null>(null);
+  const [positionForm, setPositionForm] = useState({
+    title: '',
+    order: 0
+  });
+  const [expandedPositions, setExpandedPositions] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     loadElectionStatus();
     loadElectionStats();
+    loadPositionsAndCandidates();
+
+    // Real-time listeners for candidates and positions
+    const candidatesQuery = query(collection(db, 'candidates'));
+    const positionsQuery = query(collection(db, 'positions'));
+
+    const unsubscribeCandidates = onSnapshot(candidatesQuery, (snapshot) => {
+      const candidatesData: Candidate[] = [];
+      snapshot.forEach(doc => {
+        candidatesData.push({ id: doc.id, ...doc.data() } as Candidate);
+      });
+      setCandidates(candidatesData);
+    });
+
+    const unsubscribePositions = onSnapshot(positionsQuery, (snapshot) => {
+      const positionsData: Position[] = [];
+      snapshot.forEach(doc => {
+        positionsData.push({ id: doc.id, ...doc.data() } as Position);
+      });
+      setPositions(positionsData.sort((a, b) => a.order - b.order));
+    });
 
     const interval = setInterval(() => {
       loadElectionStatus();
       loadElectionStats();
     }, 30000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      unsubscribeCandidates();
+      unsubscribePositions();
+    };
   }, []);
 
   const loadElectionStatus = async () => {
@@ -134,14 +188,31 @@ export default function AdminPage() {
     }
   };
 
+  const loadPositionsAndCandidates = async () => {
+    try {
+      const [positionsData, candidatesData] = await Promise.all([
+        getPositions(),
+        getAllCandidates()
+      ]);
+      setPositions(positionsData);
+      setCandidates(candidatesData);
+    } catch (error) {
+      console.error('Error loading positions and candidates:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!confirm('Are you sure you want to update the election settings?')) {
+      return;
+    }
 
     const newConfig: ElectionConfig = {
       startTime: new Date(formData.startTime).toISOString(),
       endTime: new Date(formData.endTime).toISOString(),
-      isActive: formData.isActive,
-      allowLateVoting: formData.allowLateVoting
+      isActive: true,
+      allowLateVoting: false
     };
 
     const startTime = new Date(newConfig.startTime);
@@ -167,6 +238,10 @@ export default function AdminPage() {
   };
 
   const startElectionNow = async () => {
+    if (!confirm('Are you sure you want to start the election now?')) {
+      return;
+    }
+
     const now = new Date();
     const endTime = new Date(now.getTime() + (24 * 60 * 60 * 1000));
 
@@ -194,6 +269,10 @@ export default function AdminPage() {
   const extendElection = async () => {
     if (!config) {
       toast.error('No election configuration found');
+      return;
+    }
+
+    if (!confirm('Are you sure you want to extend the election by 1 hour?')) {
       return;
     }
 
@@ -271,6 +350,166 @@ export default function AdminPage() {
     }
   };
 
+  // Candidate management functions
+  const openAddCandidate = () => {
+    setEditingCandidate(null);
+    setCandidateForm({ name: '', position_id: '' });
+    setShowCandidateModal(true);
+  };
+
+  const openEditCandidate = (candidate: Candidate) => {
+    setEditingCandidate(candidate);
+    setCandidateForm({ name: candidate.name, position_id: candidate.position_id });
+    setShowCandidateModal(true);
+  };
+
+  const handleCandidateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!candidateForm.name.trim() || !candidateForm.position_id) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    try {
+      let success;
+      if (editingCandidate) {
+        success = await updateCandidate(editingCandidate.id, candidateForm.name.trim(), candidateForm.position_id);
+        if (success) {
+          toast.success('Candidate updated successfully');
+        }
+      } else {
+        success = await addCandidate(candidateForm.name.trim(), candidateForm.position_id);
+        if (success) {
+          toast.success('Candidate added successfully');
+        }
+      }
+
+      if (success) {
+        setShowCandidateModal(false);
+        setCandidateForm({ name: '', position_id: '' });
+        setEditingCandidate(null);
+      } else {
+        toast.error('Failed to save candidate');
+      }
+    } catch (error) {
+      console.error('Error saving candidate:', error);
+      toast.error('Error saving candidate');
+    }
+  };
+
+  const handleDeleteCandidate = async (candidateId: string, candidateName: string) => {
+    if (!confirm(`Are you sure you want to delete ${candidateName}?`)) {
+      return;
+    }
+
+    try {
+      const success = await deleteCandidate(candidateId);
+      if (success) {
+        toast.success('Candidate deleted successfully');
+      } else {
+        toast.error('Failed to delete candidate');
+      }
+    } catch (error) {
+      console.error('Error deleting candidate:', error);
+      toast.error('Error deleting candidate');
+    }
+  };
+
+  // Toggle position expansion
+  const togglePosition = (positionId: string) => {
+    const newExpanded = new Set(expandedPositions);
+    if (newExpanded.has(positionId)) {
+      newExpanded.delete(positionId);
+    } else {
+      newExpanded.add(positionId);
+    }
+    setExpandedPositions(newExpanded);
+  };
+
+  // Position management functions
+  const openAddPosition = () => {
+    setEditingPosition(null);
+    const maxOrder = positions.length > 0 ? Math.max(...positions.map(p => p.order)) : 0;
+    setPositionForm({ title: '', order: maxOrder + 1 });
+    setShowPositionModal(true);
+  };
+
+  const openEditPosition = (position: Position) => {
+    setEditingPosition(position);
+    setPositionForm({ title: position.title, order: position.order });
+    setShowPositionModal(true);
+  };
+
+  const handlePositionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!positionForm.title.trim()) {
+      toast.error('Please enter a position title');
+      return;
+    }
+
+    try {
+      let success;
+      if (editingPosition) {
+        success = await updatePosition(editingPosition.id, positionForm.title.trim(), positionForm.order);
+        if (success) {
+          toast.success('Position updated successfully');
+        }
+      } else {
+        success = await addPosition(positionForm.title.trim(), positionForm.order);
+        if (success) {
+          toast.success('Position added successfully');
+        }
+      }
+
+      if (success) {
+        setShowPositionModal(false);
+        setPositionForm({ title: '', order: 0 });
+        setEditingPosition(null);
+      } else {
+        toast.error('Failed to save position');
+      }
+    } catch (error) {
+      console.error('Error saving position:', error);
+      toast.error('Error saving position');
+    }
+  };
+
+  const handleDeletePosition = async (positionId: string, positionTitle: string) => {
+    const positionCandidates = candidates.filter(c => c.position_id === positionId);
+    const candidateCount = positionCandidates.length;
+    
+    const confirmMessage = candidateCount > 0
+      ? `Are you sure you want to delete "${positionTitle}"?\n\nWARNING: This will also delete ${candidateCount} candidate${candidateCount > 1 ? 's' : ''} in this position:\n${positionCandidates.map(c => '• ' + c.name).join('\n')}\n\nThis action cannot be undone.`
+      : `Are you sure you want to delete "${positionTitle}"?`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      // Delete all candidates in this position first
+      if (candidateCount > 0) {
+        const deletePromises = positionCandidates.map(candidate => 
+          deleteCandidate(candidate.id)
+        );
+        await Promise.all(deletePromises);
+      }
+
+      // Then delete the position
+      const success = await deletePosition(positionId);
+      if (success) {
+        toast.success(`Position and ${candidateCount} candidate${candidateCount > 1 ? 's' : ''} deleted successfully`);
+      } else {
+        toast.error('Failed to delete position');
+      }
+    } catch (error) {
+      console.error('Error deleting position:', error);
+      toast.error('Error deleting position');
+    }
+  };
+
   return (
     <div className="bg-gradient-to-br from-green-50 via-white to-green-50 min-h-screen">
       <div className="container mx-auto px-4 py-8">
@@ -337,28 +576,6 @@ export default function AdminPage() {
                     required
                   />
                 </div>
-              </div>
-
-              <div className="flex items-center space-x-4">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={formData.isActive}
-                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                    className="rounded border-gray-300 text-green-600 focus:ring-green-500"
-                  />
-                  <span className="ml-2 text-sm font-medium text-gray-700">Election Active</span>
-                </label>
-
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={formData.allowLateVoting}
-                    onChange={(e) => setFormData({ ...formData, allowLateVoting: e.target.checked })}
-                    className="rounded border-gray-300 text-green-600 focus:ring-green-500"
-                  />
-                  <span className="ml-2 text-sm font-medium text-gray-700">Allow Late Voting</span>
-                </label>
               </div>
 
               <div className="flex space-x-4">
@@ -445,8 +662,259 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
+
+          {/* Position and Candidate Management - Unified */}
+          <div className="bg-white rounded-lg shadow-lg p-6 mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-green-600" />
+                Manage Positions & Candidates
+              </h2>
+              <button
+                onClick={openAddPosition}
+                className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Add Position
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {positions.map((position) => {
+                const positionCandidates = candidates.filter(c => c.position_id === position.id);
+                const isExpanded = expandedPositions.has(position.id);
+                
+                return (
+                  <div key={position.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                    {/* Position Header */}
+                    <div className="flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
+                      <button
+                        onClick={() => togglePosition(position.id)}
+                        className="flex items-center gap-3 flex-1 text-left"
+                      >
+                        <svg
+                          className={`w-5 h-5 text-gray-600 transition-transform ${
+                            isExpanded ? 'rotate-90' : ''
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                        <div>
+                          <p className="font-semibold text-gray-800">{position.title}</p>
+                          <p className="text-sm text-gray-500">
+                            Order: {position.order} • {positionCandidates.length} candidate{positionCandidates.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openEditPosition(position)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                          title="Edit Position"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeletePosition(position.id, position.title)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                          title="Delete Position"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Candidates List - Collapsible */}
+                    {isExpanded && (
+                      <div className="bg-white border-t border-gray-200">
+                        <div className="p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                              <Users className="w-4 h-4 text-green-600" />
+                              Candidates in this Position
+                            </h3>
+                            <button
+                              onClick={() => {
+                                setEditingCandidate(null);
+                                setCandidateForm({ name: '', position_id: position.id });
+                                setShowCandidateModal(true);
+                              }}
+                              className="text-sm bg-green-100 hover:bg-green-200 text-green-700 font-medium py-1 px-3 rounded-md transition-colors flex items-center gap-1"
+                            >
+                              <Plus className="w-3 h-3" />
+                              Add Candidate
+                            </button>
+                          </div>
+
+                          {positionCandidates.length > 0 ? (
+                            <div className="space-y-2">
+                              {positionCandidates.map((candidate) => (
+                                <div
+                                  key={candidate.id}
+                                  className="flex items-center justify-between p-3 bg-gray-50 rounded-md border border-gray-100"
+                                >
+                                  <p className="font-medium text-gray-800">{candidate.name}</p>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => openEditCandidate(candidate)}
+                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                      title="Edit Candidate"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteCandidate(candidate.id, candidate.name)}
+                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                      title="Delete Candidate"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-center text-gray-500 text-sm py-4">
+                              No candidates in this position yet
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {positions.length === 0 && (
+                <p className="text-center text-gray-500 py-8">No positions available. Create one to get started!</p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
+      
+      {/* Candidate Modal */}
+      {showCandidateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-semibold text-gray-800 mb-4">
+              {editingCandidate ? 'Edit Candidate' : 'Add New Candidate'}
+            </h3>
+            <form onSubmit={handleCandidateSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="candidateName" className="block text-sm font-medium text-gray-700 mb-2">
+                  Candidate Name
+                </label>
+                <input
+                  type="text"
+                  id="candidateName"
+                  value={candidateForm.name}
+                  onChange={(e) => setCandidateForm({ ...candidateForm, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  placeholder="Enter candidate name"
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="positionSelect" className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Position
+                </label>
+                <select
+                  id="positionSelect"
+                  value={candidateForm.position_id}
+                  onChange={(e) => setCandidateForm({ ...candidateForm, position_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  required
+                >
+                  <option value="">-- Select Position --</option>
+                  {positions.map((position) => (
+                    <option key={position.id} value={position.id}>
+                      {position.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                >
+                  {editingCandidate ? 'Update' : 'Add'} Candidate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCandidateModal(false)}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Position Modal */}
+      {showPositionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-semibold text-gray-800 mb-4">
+              {editingPosition ? 'Edit Position' : 'Add New Position'}
+            </h3>
+            <form onSubmit={handlePositionSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="positionTitle" className="block text-sm font-medium text-gray-700 mb-2">
+                  Position Title
+                </label>
+                <input
+                  type="text"
+                  id="positionTitle"
+                  value={positionForm.title}
+                  onChange={(e) => setPositionForm({ ...positionForm, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  placeholder="e.g. President, Vice President"
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="positionOrder" className="block text-sm font-medium text-gray-700 mb-2">
+                  Display Order
+                </label>
+                <input
+                  type="number"
+                  id="positionOrder"
+                  value={positionForm.order}
+                  onChange={(e) => setPositionForm({ ...positionForm, order: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  min="1"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                >
+                  {editingPosition ? 'Update' : 'Add'} Position
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPositionModal(false)}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       
       <Footer />
     </div>

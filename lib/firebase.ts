@@ -12,7 +12,8 @@ import {
   orderBy,
   Firestore,
   serverTimestamp,
-  updateDoc
+  updateDoc,
+  deleteDoc
 } from 'firebase/firestore';
 
 // Firebase configuration
@@ -357,6 +358,84 @@ export async function isElectionActive(): Promise<boolean> {
     return now >= startTime && now <= endTime;
   } catch (error) {
     console.error('Error checking election status:', error);
+    return false;
+  }
+}
+
+// Add a new candidate
+export async function addCandidate(name: string, positionId: string): Promise<boolean> {
+  try {
+    await addDoc(collection(db, 'candidates'), {
+      name,
+      position_id: positionId
+    });
+    return true;
+  } catch (error) {
+    console.error('Error adding candidate:', error);
+    return false;
+  }
+}
+
+// Update a candidate
+export async function updateCandidate(candidateId: string, name: string, positionId: string): Promise<boolean> {
+  try {
+    await updateDoc(doc(db, 'candidates', candidateId), {
+      name,
+      position_id: positionId
+    });
+    return true;
+  } catch (error) {
+    console.error('Error updating candidate:', error);
+    return false;
+  }
+}
+
+// Delete a candidate
+export async function deleteCandidate(candidateId: string): Promise<boolean> {
+  try {
+    await deleteDoc(doc(db, 'candidates', candidateId));
+    return true;
+  } catch (error) {
+    console.error('Error deleting candidate:', error);
+    return false;
+  }
+}
+
+// Add a new position
+export async function addPosition(title: string, order: number): Promise<boolean> {
+  try {
+    await addDoc(collection(db, 'positions'), {
+      title,
+      order
+    });
+    return true;
+  } catch (error) {
+    console.error('Error adding position:', error);
+    return false;
+  }
+}
+
+// Update a position
+export async function updatePosition(positionId: string, title: string, order: number): Promise<boolean> {
+  try {
+    await updateDoc(doc(db, 'positions', positionId), {
+      title,
+      order
+    });
+    return true;
+  } catch (error) {
+    console.error('Error updating position:', error);
+    return false;
+  }
+}
+
+// Delete a position
+export async function deletePosition(positionId: string): Promise<boolean> {
+  try {
+    await deleteDoc(doc(db, 'positions', positionId));
+    return true;
+  } catch (error) {
+    console.error('Error deleting position:', error);
     return false;
   }
 }

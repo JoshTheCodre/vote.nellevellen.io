@@ -8,7 +8,9 @@ import Navigation from '@/components/Navigation';
 import CountdownTimer from '@/components/CountdownTimer';
 import VoteCard from '@/components/VoteCard';
 import Footer from '@/components/Footer';
-import { getPositions, getCandidatesForPosition, getUserVotes, markUserAsVoted, Position, Candidate } from '@/lib/firebase';
+import { getPositions, getCandidatesForPosition, getUserVotes, markUserAsVoted, Position, Candidate, getElectionConfig, getUser } from '@/lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import toast from 'react-hot-toast';
 
 interface PositionWithCandidates extends Position {
@@ -23,6 +25,7 @@ export default function VotingPage() {
   const [votedPositions, setVotedPositions] = useState<Set<string>>(new Set());
   const [voteCount, setVoteCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
 
   useEffect(() => {
     // Check authentication
@@ -37,41 +40,84 @@ export default function VotingPage() {
       return;
     }
 
-    setVoterId(storedVoterId);
-    setVoterAvatar(storedAvatar);
-
-    // Mark that user is on voting page
-    sessionStorage.setItem('onVotingPage', 'true');
-
-    // Load data
-    loadVotingData(storedVoterId);
-
-    // Handle page unload
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (sessionStorage.getItem('onVotingPage') === 'true') {
-        e.preventDefault();
-        e.returnValue = 'Are you sure you want to leave the election? You will be logged out and cannot login again.';
-      }
-    };
-
-    const handleUnload = async () => {
-      if (sessionStorage.getItem('onVotingPage') === 'true' && storedVoterId) {
-        try {
-          await markUserAsVoted(storedVoterId);
-        } catch (error) {
-          console.error('Error marking user as voted:', error);
-        }
+    // Verify user hasn't voted yet
+    const checkUserStatus = async () => {
+      const user = await getUser(storedVoterId);
+      if (user?.hasVoted) {
+        toast.error('You have already completed your voting session.');
         sessionStorage.clear();
+        router.push('/');
+        return;
       }
+
+      // Check if election config is set
+      const config = await getElectionConfig();
+      if (!config || !config.startTime || !config.endTime) {
+        toast.error('Election has not been configured yet. Please contact admin.');
+        sessionStorage.clear();
+        router.push('/');
+        return;
+      }
+
+      setVoterId(storedVoterId);
+      setVoterAvatar(storedAvatar);
+
+      // Mark that user is on voting page
+      sessionStorage.setItem('onVotingPage', 'true');
+
+      // Load data
+      loadVotingData(storedVoterId);
+
+      // Real-time listener for election config
+      const electionConfigRef = doc(db, 'admin', 'election_config');
+      const unsubscribeConfig = onSnapshot(electionConfigRef, (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const config = docSnapshot.data();
+          const now = new Date();
+          const endTime = new Date(config.endTime);
+          
+          // Check if election is stopped or time expired
+          if (!config.isActive || now > endTime) {
+            toast.error('Election has ended. Redirecting to results...');
+            sessionStorage.removeItem('onVotingPage');
+            setTimeout(() => {
+              router.push('/results');
+            }, 2000);
+          }
+        }
+      });
+
+      // Handle page unload
+      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+        if (sessionStorage.getItem('onVotingPage') === 'true') {
+          e.preventDefault();
+          e.returnValue = 'Are you sure you want to leave the election? You will be logged out and cannot login again.';
+        }
+      };
+
+      const handleUnload = async () => {
+        if (sessionStorage.getItem('onVotingPage') === 'true' && storedVoterId) {
+          try {
+            await markUserAsVoted(storedVoterId);
+          } catch (error) {
+            console.error('Error marking user as voted:', error);
+          }
+          sessionStorage.clear();
+        }
+      };
+
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      window.addEventListener('pagehide', handleUnload);
+
+      // Return cleanup function
+      return () => {
+        unsubscribeConfig();
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        window.removeEventListener('pagehide', handleUnload);
+      };
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('pagehide', handleUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('pagehide', handleUnload);
-    };
+    checkUserStatus();
   }, [router]);
 
   const loadVotingData = async (userId: string) => {
@@ -109,6 +155,25 @@ export default function VotingPage() {
       const votedPositionIds = new Set(userVotes.map(vote => vote.position_id));
       setVotedPositions(votedPositionIds);
       setVoteCount(userVotes.length);
+
+      // Check if all positions have been voted on (or passed)
+      if (votedPositionIds.size === positions.length) {
+        setShowCompletionModal(true);
+      }
+    }
+  };
+
+  const handleCompletionConfirm = async () => {
+    if (voterId) {
+      try {
+        await markUserAsVoted(voterId);
+        sessionStorage.removeItem('onVotingPage');
+        sessionStorage.clear();
+        router.push('/results');
+      } catch (error) {
+        console.error('Error marking user as voted:', error);
+        toast.error('Error completing voting');
+      }
     }
   };
 
@@ -178,6 +243,34 @@ export default function VotingPage() {
           <p className="text-2xl font-bold text-green-600">{voteCount}</p>
         </div>
       </div>
+
+      {/* Completion Modal */}
+      {showCompletionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
+            <div className="mb-6">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-3">🎉 Congratulations!</h2>
+              <p className="text-lg text-gray-700 mb-2">
+                You have successfully completed your voting for all positions.
+              </p>
+              <p className="text-gray-600">
+                Thank you for participating in the NACOS Rivers election!
+              </p>
+            </div>
+            <button
+              onClick={handleCompletionConfirm}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 shadow-lg hover:shadow-xl"
+            >
+              View Live Results
+            </button>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

@@ -15,12 +15,24 @@ export default function LoginPage() {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasVotedUser, setHasVotedUser] = useState(false);
 
   useEffect(() => {
     // Check if already logged in
     const storedVoterId = sessionStorage.getItem('voterId');
     if (storedVoterId) {
-      router.push('/voting');
+      // Check if user has already voted
+      const checkVotingStatus = async () => {
+        const user = await getUser(storedVoterId);
+        if (user?.hasVoted) {
+          // User has voted, clear session and show results only
+          sessionStorage.clear();
+          setHasVotedUser(true);
+        } else {
+          router.push('/voting');
+        }
+      };
+      checkVotingStatus();
     }
 
     // Load users
@@ -103,85 +115,103 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          {/* OR Divider */}
-          <div className="flex items-center justify-center gap-4">
-            <div className="h-px bg-gray-300 flex-1" />
-            <span className="text-gray-500 text-sm font-medium px-3 py-1 bg-gray-50 rounded-full">OR</span>
-            <div className="h-px bg-gray-300 flex-1" />
-          </div>
-
-          {/* Login Card */}
-          <div className="bg-white border border-gray-200 rounded-3xl p-8 shadow-lg">
-            <div className="text-center mb-8">
-              <div className="flex justify-center mb-6">
-                <Image
-                  src="/NACOS.png"
-                  alt="NACOS Logo"
-                  width={90}
-                  height={90}
-                  className="rounded-full shadow-xl border-4 border-green-600"
-                />
-              </div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">NACOS Rivers</h1>
-              <p className="text-gray-600 font-medium">Secure Voting Portal</p>
-              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-green-50 border border-green-200 rounded-full">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-xs text-green-700 font-medium">Election Active</span>
-              </div>
-            </div>
-
-            <form onSubmit={handleLogin} noValidate>
-              <div className="mb-6">
-                <label htmlFor="voterId" className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-green-600" />
-                  Voter ID
-                </label>
-                <input
-                  type="text"
-                  id="voterId"
-                  value={voterId}
-                  onChange={(e) => setVoterId(e.target.value.toUpperCase())}
-                  className="w-full px-4 py-4 border-2 border-gray-300 rounded-xl text-gray-900 bg-white focus:outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100 transition duration-200 placeholder-gray-400 uppercase text-center text-lg font-semibold tracking-wider"
-                  placeholder="e.g., TIGER-001"
-                  required
-                  disabled={isLoading}
-                />
+          {!hasVotedUser && (
+            <>
+              {/* OR Divider */}
+              <div className="flex items-center justify-center gap-4">
+                <div className="h-px bg-gray-300 flex-1" />
+                <span className="text-gray-500 text-sm font-medium px-3 py-1 bg-gray-50 rounded-full">OR</span>
+                <div className="h-px bg-gray-300 flex-1" />
               </div>
 
-              {/* Voter Display Section */}
-              {selectedUser && (
-                <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
-                  <div className="flex items-center gap-4">
+              {/* Login Card */}
+              <div className="bg-white border border-gray-200 rounded-3xl p-8 shadow-lg">
+                <div className="text-center mb-8">
+                  <div className="flex justify-center mb-6">
                     <Image
-                      src={`https://api.dicebear.com/7.x/bottts/svg?seed=${selectedUser.avatar}`}
-                      alt="Voter Avatar"
-                      width={64}
-                      height={64}
-                      className="rounded-full"
-                      unoptimized
+                      src="/NACOS.png"
+                      alt="NACOS Logo"
+                      width={90}
+                      height={90}
+                      className="rounded-full shadow-xl border-4 border-green-600"
                     />
-                    <div>
-                      <p className="text-sm text-gray-600">Voting As</p>
-                      <p className="text-lg font-bold text-gray-900">{selectedUser.id}</p>
-                    </div>
+                  </div>
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">NACOS Rivers</h1>
+                  <p className="text-gray-600 font-medium">Secure Voting Portal</p>
+                  <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-green-50 border border-green-200 rounded-full">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs text-green-700 font-medium">Election Active</span>
                   </div>
                 </div>
-              )}
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 active:scale-95 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-              >
-                <Check className="w-5 h-5" />
-                {isLoading ? 'Verifying...' : 'Login to Vote'}
-              </button>
-            </form>
+                <form onSubmit={handleLogin} noValidate>
+                  <div className="mb-6">
+                    <label htmlFor="voterId" className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-green-600" />
+                      Voter ID
+                    </label>
+                    <input
+                      type="text"
+                      id="voterId"
+                      value={voterId}
+                      onChange={(e) => setVoterId(e.target.value.toUpperCase())}
+                      className="w-full px-4 py-4 border-2 border-gray-300 rounded-xl text-gray-900 bg-white focus:outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100 transition duration-200 placeholder-gray-400 uppercase text-center text-lg font-semibold tracking-wider"
+                      placeholder="e.g., TIGER-001"
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
 
-            <p className="text-center text-gray-600 text-sm mt-6">
-              All registered voters can login with their assigned voter ID
-            </p>
-          </div>
+                  {/* Voter Display Section */}
+                  {selectedUser && (
+                    <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center gap-4">
+                        <Image
+                          src={`https://api.dicebear.com/7.x/bottts/svg?seed=${selectedUser.avatar}`}
+                          alt="Voter Avatar"
+                          width={64}
+                          height={64}
+                          className="rounded-full"
+                          unoptimized
+                        />
+                        <div>
+                          <p className="text-sm text-gray-600">Voting As</p>
+                          <p className="text-lg font-bold text-gray-900">{selectedUser.id}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 active:scale-95 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <Check className="w-5 h-5" />
+                    {isLoading ? 'Verifying...' : 'Login to Vote'}
+                  </button>
+                </form>
+
+                <p className="text-center text-gray-600 text-sm mt-6">
+                  All registered voters can login with their assigned voter ID
+                </p>
+              </div>
+            </>
+          )}
+
+          {hasVotedUser && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-3xl p-8 shadow-lg text-center">
+              <div className="mb-4">
+                <div className="w-16 h-16 bg-yellow-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-8 h-8 text-yellow-700" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Already Voted</h2>
+                <p className="text-gray-600">
+                  You have already completed your voting session. You can only view the live results now.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <Footer />
