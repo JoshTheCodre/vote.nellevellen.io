@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Clock, Settings, Zap, BarChart, Play, StopCircle, RefreshCw, Save, Plus, Edit2, Trash2, Users, ClipboardList, Download, ExternalLink } from 'lucide-react';
+import { Clock, Settings, Zap, BarChart, Play, StopCircle, RefreshCw, Save, Plus, Edit2, Trash2, Users, ClipboardList, Download, ExternalLink, Shield } from 'lucide-react';
 import Footer from '@/components/Footer';
 import { 
   getElectionConfig, 
@@ -21,7 +21,7 @@ import {
   updatePosition,
   deletePosition
 } from '@/lib/firebase';
-import { collection, getDocs, onSnapshot, query } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import toast from 'react-hot-toast';
 
@@ -48,6 +48,8 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [adminKeyInput, setAdminKeyInput] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [userRole, setUserRole] = useState<'chairman' | 'secretary' | 'committee' | null>(null);
+  const [userEmail, setUserEmail] = useState('');
 
   // Candidate management state
   const [positions, setPositions] = useState<Position[]>([]);
@@ -68,7 +70,7 @@ export default function AdminPage() {
   });
   const [expandedPositions, setExpandedPositions] = useState<Set<string>>(new Set());
 
-  // Verify admin key
+  // Verify admin key and get role
   const verifyAdminKey = async () => {
     if (!adminKeyInput.trim()) {
       toast.error('Please enter an admin key');
@@ -78,19 +80,43 @@ export default function AdminPage() {
     setIsVerifying(true);
     try {
       const adminDoc = await getDocs(collection(db, 'admin'));
-      let storedKey = '';
+      let foundRole = null;
+      let foundEmail = '';
       
       adminDoc.forEach(doc => {
-        if (doc.id === 'access_key') {
-          storedKey = doc.data().key;
+        if (doc.id === 'role') {
+          const rolesData = doc.data();
+          const inputKey = adminKeyInput.trim();
+          
+          // Check Chairman key (must start with NACOS_CHAIRMAN_)
+          if (rolesData.chairman && inputKey === rolesData.chairman.key && inputKey.startsWith('NACOS_CHAIRMAN_')) {
+            foundRole = 'chairman';
+            foundEmail = rolesData.chairman.email || rolesData.chairman.name;
+          } 
+          // Check Secretary key (must start with NACOS_SECRETARY_)
+          else if (rolesData.secretary && inputKey === rolesData.secretary.key && inputKey.startsWith('NACOS_SECRETARY_')) {
+            foundRole = 'secretary';
+            foundEmail = rolesData.secretary.email || rolesData.secretary.name;
+          } 
+          // Check Committee keys (must start with NACOS_COMMITTEE_)
+          else if (rolesData.committee && Array.isArray(rolesData.committee)) {
+            const member = rolesData.committee.find((m: any) => m.key === inputKey && inputKey.startsWith('NACOS_COMMITTEE_'));
+            if (member) {
+              foundRole = 'committee';
+              foundEmail = member.email || member.name;
+            }
+          }
         }
       });
 
-      if (adminKeyInput === storedKey) {
+      if (foundRole) {
         setIsAuthenticated(true);
-        toast.success('Access granted!');
+        setUserRole(foundRole as 'chairman' | 'secretary' | 'committee');
+        setUserEmail(foundEmail);
+        const roleDisplay = foundRole === 'chairman' ? 'CHAIRMAN' : foundRole === 'secretary' ? 'SECRETARY-GENERAL' : 'COMMITTEE MEMBER';
+        toast.success(`✅ Access granted! (${roleDisplay})`);
       } else {
-        toast.error('Invalid admin key');
+        toast.error('❌ Invalid admin key or key format');
       }
     } catch (error) {
       console.error('Error verifying key:', error);
@@ -100,10 +126,70 @@ export default function AdminPage() {
     }
   };
 
+  // Permission checking functions
+  const canManageElection = () => userRole === 'chairman';
+  const canManageCandidates = () => userRole === 'chairman';
+  const canManagePositions = () => userRole === 'chairman' || userRole === 'secretary';
+  const canDownloadResults = () => userRole === 'chairman' || userRole === 'committee';
+  const canViewSettings = () => userRole === 'chairman';
+  const canStartElection = () => userRole === 'chairman';
+
   useEffect(() => {
-    loadElectionStatus();
-    loadElectionStats();
-    loadPositionsAndCandidates();
+    // Set up real-time listener for election config
+    const unsubscribeConfig = onSnapshot(doc(db, 'admin', 'election_config'), (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const electionConfig = docSnapshot.data() as ElectionConfig;
+        setConfig(electionConfig);
+        setFormData({
+          startTime: formatDateTimeLocal(new Date(electionConfig.startTime)),
+          endTime: formatDateTimeLocal(new Date(electionConfig.endTime)),
+          isActive: electionConfig.isActive || false,
+          allowLateVoting: electionConfig.allowLateVoting || false
+        });
+
+        // Update status info in real-time
+        const now = new Date();
+        const startTime = new Date(electionConfig.startTime);
+        const endTime = new Date(electionConfig.endTime);
+
+        let status: string;
+        let timeRemaining: string;
+
+        if (!electionConfig.isActive) {
+          status = 'Inactive';
+          timeRemaining = 'Election Disabled';
+        } else if (now < startTime) {
+          status = 'Scheduled';
+          timeRemaining = formatTimeRemaining(startTime.getTime() - now.getTime()) + ' until start';
+        } else if (now > endTime) {
+          status = 'Ended';
+          timeRemaining = 'Election Ended';
+        } else {
+          status = 'Active';
+          timeRemaining = formatTimeRemaining(endTime.getTime() - now.getTime()) + ' remaining';
+        }
+
+        setStatusInfo({ status, timeRemaining });
+      }
+    }, (error) => {
+      console.error('Error listening to election config:', error);
+      // Fallback to default if listener fails
+      const now = new Date();
+      const defaultStart = new Date(now.getTime() + (1 * 60 * 60 * 1000));
+      const defaultEnd = new Date(now.getTime() + (25 * 60 * 60 * 1000));
+      
+      setFormData({
+        startTime: formatDateTimeLocal(defaultStart),
+        endTime: formatDateTimeLocal(defaultEnd),
+        isActive: false,
+        allowLateVoting: false
+      });
+      
+      setStatusInfo({
+        status: 'Not Configured',
+        timeRemaining: 'N/A'
+      });
+    });
 
     // Real-time listeners for candidates and positions
     const candidatesQuery = query(collection(db, 'candidates'));
@@ -125,106 +211,49 @@ export default function AdminPage() {
       setPositions(positionsData.sort((a, b) => a.order - b.order));
     });
 
-    const interval = setInterval(() => {
-      loadElectionStatus();
-      loadElectionStats();
-    }, 30000);
+    // Real-time listener for stats (users, votes, positions)
+    const usersQuery = query(collection(db, 'users'));
+    const votesQuery = query(collection(db, 'votes'));
+    
+    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+      const totalUsers = snapshot.size;
+      
+      // Recalculate stats when users change
+      setStats(prev => ({ ...prev, totalUsers }));
+    });
+
+    const unsubscribeVotes = onSnapshot(votesQuery, (snapshot) => {
+      const totalVotes = snapshot.size;
+      
+      // Calculate unique voters and turnout
+      const votes: any[] = [];
+      snapshot.forEach(doc => votes.push(doc.data()));
+      const uniqueVoters = new Set(votes.map(vote => vote.voter_id)).size;
+      
+      setStats(prev => {
+        const turnoutRate = prev.totalUsers > 0 ? ((uniqueVoters / prev.totalUsers) * 100).toFixed(1) : 0;
+        return {
+          ...prev,
+          votesCast: totalVotes,
+          turnoutRate: Number(turnoutRate)
+        };
+      });
+    });
+
+    const unsubscribePositionsStats = onSnapshot(positionsQuery, (snapshot) => {
+      const positionCount = snapshot.size;
+      setStats(prev => ({ ...prev, positions: positionCount }));
+    });
 
     return () => {
-      clearInterval(interval);
+      unsubscribeConfig();
       unsubscribeCandidates();
       unsubscribePositions();
+      unsubscribeUsers();
+      unsubscribeVotes();
+      unsubscribePositionsStats();
     };
   }, []);
-
-  const loadElectionStatus = async () => {
-    try {
-      const electionConfig = await getElectionConfig();
-      
-      if (!electionConfig) {
-        const now = new Date();
-        const defaultStart = new Date(now.getTime() + (1 * 60 * 60 * 1000));
-        const defaultEnd = new Date(now.getTime() + (25 * 60 * 60 * 1000));
-        
-        setFormData({
-          startTime: formatDateTimeLocal(defaultStart),
-          endTime: formatDateTimeLocal(defaultEnd),
-          isActive: false,
-          allowLateVoting: false
-        });
-        
-        setStatusInfo({
-          status: 'Not Configured',
-          timeRemaining: 'N/A'
-        });
-        
-        return;
-      }
-
-      setConfig(electionConfig);
-      setFormData({
-        startTime: formatDateTimeLocal(new Date(electionConfig.startTime)),
-        endTime: formatDateTimeLocal(new Date(electionConfig.endTime)),
-        isActive: electionConfig.isActive || false,
-        allowLateVoting: electionConfig.allowLateVoting || false
-      });
-
-      const active = await isElectionActive();
-      const now = new Date();
-      const startTime = new Date(electionConfig.startTime);
-      const endTime = new Date(electionConfig.endTime);
-
-      let status: string;
-      let timeRemaining: string;
-
-      if (!electionConfig.isActive) {
-        status = 'Inactive';
-        timeRemaining = 'Election Disabled';
-      } else if (now < startTime) {
-        status = 'Scheduled';
-        timeRemaining = formatTimeRemaining(startTime.getTime() - now.getTime()) + ' until start';
-      } else if (now > endTime) {
-        status = 'Ended';
-        timeRemaining = 'Election Ended';
-      } else {
-        status = 'Active';
-        timeRemaining = formatTimeRemaining(endTime.getTime() - now.getTime()) + ' remaining';
-      }
-
-      setStatusInfo({ status, timeRemaining });
-    } catch (error) {
-      console.error('Error loading election status:', error);
-      toast.error('Error loading election status');
-    }
-  };
-
-  const loadElectionStats = async () => {
-    try {
-      const [usersSnap, votesSnap, positionsSnap] = await Promise.all([
-        getDocs(collection(db, 'users')),
-        getDocs(collection(db, 'votes')),
-        getDocs(collection(db, 'positions'))
-      ]);
-
-      const totalUsers = usersSnap.size;
-      const totalVotes = votesSnap.size;
-
-      const votes: any[] = [];
-      votesSnap.forEach(doc => votes.push(doc.data()));
-      const uniqueVoters = new Set(votes.map(vote => vote.voter_id)).size;
-
-      const turnoutRate = totalUsers > 0 ? ((uniqueVoters / totalUsers) * 100).toFixed(1) : 0;
-
-      setStats({
-        totalUsers,
-        votesCast: totalVotes,
-        turnoutRate: Number(turnoutRate),
-        positions: positionsSnap.size
-      });
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    }
-  };
 
   const loadPositionsAndCandidates = async () => {
     try {
@@ -265,7 +294,7 @@ export default function AdminPage() {
       const success = await updateElectionConfig(newConfig);
       if (success) {
         toast.success('Election configuration updated successfully');
-        loadElectionStatus();
+        // No need to call loadElectionStatus - listener will update automatically
       } else {
         toast.error('Failed to update election configuration');
       }
@@ -294,7 +323,7 @@ export default function AdminPage() {
       const success = await updateElectionConfig(newConfig);
       if (success) {
         toast.success('Election started successfully!');
-        loadElectionStatus();
+        // No need to call loadElectionStatus - listener will update automatically
       } else {
         toast.error('Failed to start election');
       }
@@ -326,7 +355,7 @@ export default function AdminPage() {
       const success = await updateElectionConfig(updatedConfig);
       if (success) {
         toast.success('Election extended by 10 minutes');
-        loadElectionStatus();
+        // No need to call loadElectionStatus - listener will update automatically
       } else {
         toast.error('Failed to extend election');
       }
@@ -356,7 +385,7 @@ export default function AdminPage() {
       const success = await updateElectionConfig(updatedConfig);
       if (success) {
         toast.success('Election stopped successfully');
-        loadElectionStatus();
+        // No need to call loadElectionStatus - listener will update automatically
       } else {
         toast.error('Failed to stop election');
       }
@@ -598,7 +627,7 @@ export default function AdminPage() {
       const addWatermark = () => {
         if (logoImageData) {
           doc.saveGraphicsState();
-          doc.setGState(new (doc as any).GState({ opacity: 0.3 }));
+          doc.setGState(new (doc as any).GState({ opacity: 0.03 }));
           // Center watermark (larger, faded)
           const watermarkSize = 80;
           doc.addImage(
@@ -752,8 +781,24 @@ export default function AdminPage() {
             </div>
 
             <p className="text-center text-sm text-gray-500 mt-6">
-              🔒 Admin key can only be changed in Firestore database
+              🔒 Admin key required to access
             </p>
+
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg text-xs text-gray-700 space-y-2 border border-blue-200">
+              <p className="font-semibold text-blue-900 mb-3">🔐 Available Roles & Key Format:</p>
+              <p className="flex items-start gap-2">
+                <span className="text-blue-600 font-bold mt-0.5">•</span>
+                <span><strong>Eleco Chairman:</strong> Key starts with <code className="bg-blue-100 px-2 py-0.5 rounded text-blue-700">NACOS_CHAIRMAN_</code></span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="text-blue-600 font-bold mt-0.5">•</span>
+                <span><strong>Secretary-General:</strong> Key starts with <code className="bg-blue-100 px-2 py-0.5 rounded text-blue-700">NACOS_SECRETARY_</code></span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="text-blue-600 font-bold mt-0.5">•</span>
+                <span><strong>Committee Members (4):</strong> Key starts with <code className="bg-blue-100 px-2 py-0.5 rounded text-blue-700">NACOS_COMMITTEE_</code></span>
+              </p>
+            </div>
           </div>
         </div>
       ) : (
@@ -762,32 +807,61 @@ export default function AdminPage() {
         <div className="text-center mb-8">
           <Image src="/NACOS.png" alt="NACOS Logo" width={80} height={80} className="mx-auto mb-4 drop-shadow-lg" unoptimized />
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Election Admin Panel</h1>
-          <p className="text-gray-600">Manage election timing and settings</p>
           
-          {/* Quick Actions Bar */}
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/results"
-              target="_blank"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-green-500 text-green-700 rounded-lg hover:bg-green-50 transition-all duration-200 font-medium shadow-sm hover:shadow-md group"
-            >
-              <BarChart className="w-4 h-4 group-hover:scale-110 transition-transform" />
-              <span>View Live Results</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </Link>
-            
+          {/* Role Badge */}
+          <div className="flex items-center justify-center gap-2 mt-3 mb-4">
+            <Shield className="w-5 h-5 text-blue-600" />
+            <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold">
+              {userRole === 'chairman' && '👑 Eleco Chairman'}
+              {userRole === 'secretary' && '📋 Secretary-General'}
+              {userRole === 'committee' && '📊 Committee Member'}
+            </span>
             <button
-              onClick={downloadResults}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md group"
+              onClick={() => {
+                setIsAuthenticated(false);
+                setUserRole(null);
+                setAdminKeyInput('');
+              }}
+              className="ml-4 text-sm text-gray-500 hover:text-gray-700 underline"
             >
-              <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
-              <span>Download Results</span>
+              Logout
             </button>
+          </div>
+          
+          {/* Show appropriate description based on role */}
+          {userRole === 'chairman' && <p className="text-gray-600">Full access to election management</p>}
+          {userRole === 'secretary' && <p className="text-gray-600">Position management only</p>}
+          {userRole === 'committee' && <p className="text-gray-600">View and download results</p>}
+          
+          {/* Quick Actions Bar - Shown based on role */}
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            {(canManageElection() || canDownloadResults()) && (
+              <Link
+                href="/results"
+                target="_blank"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-green-500 text-green-700 rounded-lg hover:bg-green-50 transition-all duration-200 font-medium shadow-sm hover:shadow-md group"
+              >
+                <BarChart className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                <span>View Live Results</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </Link>
+            )}
+            
+            {canDownloadResults() && (
+              <button
+                onClick={downloadResults}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md group"
+              >
+                <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                <span>Download Results</span>
+              </button>
+            )}
           </div>
         </div>
 
         <div className="max-w-4xl mx-auto">
-          {/* Current Status */}
+          {/* Current Status - Visible to Chairman and Committee */}
+          {(canManageElection() || canDownloadResults()) && (
           <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
             <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <Clock className="w-5 h-5 text-green-600" />
@@ -805,8 +879,10 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
+          )}
 
-          {/* Election Timing Controls */}
+          {/* Election Timing Controls - Chairman Only */}
+          {canManageElection() && (
           <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
             <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <Settings className="w-5 h-5 text-green-600" />
@@ -855,17 +931,19 @@ export default function AdminPage() {
 
                 <button
                   type="button"
-                  onClick={loadElectionStatus}
+                  onClick={() => window.location.reload()}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors flex items-center gap-2"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  Refresh Status
+                  Refresh Page
                 </button>
               </div>
             </form>
           </div>
+          )}
 
-          {/* Quick Actions */}
+          {/* Quick Actions - Chairman Only */}
+          {canManageElection() && (
           <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
             <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <Zap className="w-5 h-5 text-green-600" />
@@ -898,8 +976,10 @@ export default function AdminPage() {
               </button>
             </div>
           </div>
+          )}
 
-          {/* Election Statistics */}
+          {/* Election Statistics - Chairman Only */}
+          {canManageElection() && (
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <BarChart className="w-5 h-5 text-green-600" />
@@ -928,8 +1008,10 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
+          )}
 
-          {/* Position and Candidate Management - Unified */}
+          {/* Position and Candidate Management - Visible to Chairman and Secretary */}
+          {(canManagePositions() || canManageCandidates()) && (
           <div className="bg-white rounded-lg shadow-lg p-6 mt-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
@@ -939,6 +1021,7 @@ export default function AdminPage() {
               <button
                 onClick={openAddPosition}
                 className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition-colors flex items-center gap-2"
+                disabled={!canManagePositions()}
               >
                 <Plus className="w-4 h-4" />
                 Add Position
@@ -983,20 +1066,24 @@ export default function AdminPage() {
                         </div>
                       </button>
                       <div className="flex gap-2">
-                        <button
-                          onClick={() => openEditPosition(position)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                          title="Edit Position"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeletePosition(position.id, position.title)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                          title="Delete Position"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {canManagePositions() && (
+                        <>
+                          <button
+                            onClick={() => openEditPosition(position)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                            title="Edit Position"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeletePosition(position.id, position.title)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                            title="Delete Position"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                        )}
                       </div>
                     </div>
 
@@ -1015,7 +1102,8 @@ export default function AdminPage() {
                                 setCandidateForm({ name: '', position_id: position.id });
                                 setShowCandidateModal(true);
                               }}
-                              className="text-sm bg-green-100 hover:bg-green-200 text-green-700 font-medium py-1 px-3 rounded-md transition-colors flex items-center gap-1"
+                              className="text-sm bg-green-100 hover:bg-green-200 text-green-700 font-medium py-1 px-3 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={!canManageCandidates()}
                             >
                               <Plus className="w-3 h-3" />
                               Add Candidate
@@ -1031,20 +1119,24 @@ export default function AdminPage() {
                                 >
                                   <p className="font-medium text-gray-800">{candidate.name}</p>
                                   <div className="flex gap-2">
-                                    <button
-                                      onClick={() => openEditCandidate(candidate)}
-                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                      title="Edit Candidate"
-                                    >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteCandidate(candidate.id, candidate.name)}
-                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                      title="Delete Candidate"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                    {canManageCandidates() && (
+                                    <>
+                                      <button
+                                        onClick={() => openEditCandidate(candidate)}
+                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                        title="Edit Candidate"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteCandidate(candidate.id, candidate.name)}
+                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                        title="Delete Candidate"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </>
+                                    )}
                                   </div>
                                 </div>
                               ))}
@@ -1065,10 +1157,11 @@ export default function AdminPage() {
               )}
             </div>
           </div>
+          )}
         </div>
       
-      {/* Candidate Modal */}
-      {showCandidateModal && (
+      {/* Candidate Modal - Chairman and Secretary Only */}
+      {showCandidateModal && canManageCandidates() && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <h3 className="text-xl font-semibold text-gray-800 mb-4">
@@ -1130,8 +1223,8 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Position Modal */}
-      {showPositionModal && (
+      {/* Position Modal - Secretary and Chairman Only */}
+      {showPositionModal && canManagePositions() && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <h3 className="text-xl font-semibold text-gray-800 mb-4">
