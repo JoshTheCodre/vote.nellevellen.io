@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Lock, Check, ArrowRight, BarChart2 } from 'lucide-react';
-import { getUser, getAllUsers, User } from '@/lib/firebase';
+import { getUser, getAllUsers, User, getElectionConfig, ElectionConfig } from '@/lib/firebase';
 import Footer from '@/components/Footer';
+import { db } from '@/lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
@@ -16,6 +18,8 @@ export default function LoginPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [hasVotedUser, setHasVotedUser] = useState(false);
+  const [electionStatus, setElectionStatus] = useState<'Not Started' | 'Active' | 'Ended' | 'Not Configured'>('Not Configured');
+  const [timeRemaining, setTimeRemaining] = useState<string>('');
 
   useEffect(() => {
     // Check if already logged in
@@ -41,7 +45,67 @@ export default function LoginPage() {
       setAllUsers(users);
     };
     loadUsers();
+
+    // Listen to election config changes
+    const unsubscribe = onSnapshot(doc(db, 'admin', 'election_config'), (docSnap) => {
+      if (docSnap.exists()) {
+        const config = docSnap.data() as ElectionConfig;
+        updateElectionStatus(config);
+      } else {
+        setElectionStatus('Not Configured');
+        setTimeRemaining('No election configured');
+      }
+    });
+
+    // Update time remaining every second
+    const interval = setInterval(() => {
+      getElectionConfig().then(config => {
+        if (config) updateElectionStatus(config);
+      });
+    }, 1000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
   }, [router]);
+
+  const updateElectionStatus = (config: ElectionConfig) => {
+    const now = new Date();
+    const startTime = new Date(config.startTime);
+    const endTime = new Date(config.endTime);
+
+    if (!config.isActive) {
+      setElectionStatus('Not Started');
+      setTimeRemaining('Election not activated');
+    } else if (now < startTime) {
+      setElectionStatus('Not Started');
+      const ms = startTime.getTime() - now.getTime();
+      setTimeRemaining(`Starts in ${formatTimeRemaining(ms)}`);
+    } else if (now > endTime) {
+      setElectionStatus('Ended');
+      setTimeRemaining('Voting has ended');
+    } else {
+      setElectionStatus('Active');
+      const ms = endTime.getTime() - now.getTime();
+      setTimeRemaining(`${formatTimeRemaining(ms)} remaining`);
+    }
+  };
+
+  const formatTimeRemaining = (ms: number): string => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${seconds}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  };
 
   useEffect(() => {
     const trimmedId = voterId.trim().toUpperCase();
@@ -55,6 +119,17 @@ export default function LoginPage() {
 
     if (!trimmedId) {
       toast.error('⚠️ Please enter your Voter ID');
+      return;
+    }
+
+    // Check if election is active
+    if (electionStatus === 'Ended') {
+      toast.error('✗ Voting has ended. You can view the results page.');
+      return;
+    }
+    
+    if (electionStatus !== 'Active') {
+      toast.error('✗ Voting is not currently active. Please try again when the election starts.');
       return;
     }
 
@@ -138,9 +213,31 @@ export default function LoginPage() {
                   </div>
                   <h1 className="text-3xl font-bold text-gray-900 mb-2">NACOS Rivers</h1>
                   <p className="text-gray-600 font-medium">Secure Voting Portal</p>
-                  <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-green-50 border border-green-200 rounded-full">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-xs text-green-700 font-medium">Election Active</span>
+                  <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full border-2 transition-all">
+                    {electionStatus === 'Active' && (
+                      <>
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <span className="text-xs text-green-700 font-semibold">🟢 {timeRemaining}</span>
+                      </>
+                    )}
+                    {electionStatus === 'Not Started' && (
+                      <>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <span className="text-xs text-blue-700 font-semibold">⏱️ {timeRemaining}</span>
+                      </>
+                    )}
+                    {electionStatus === 'Ended' && (
+                      <>
+                        <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                        <span className="text-xs text-gray-700 font-semibold">🏁 {timeRemaining}</span>
+                      </>
+                    )}
+                    {electionStatus === 'Not Configured' && (
+                      <>
+                        <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                        <span className="text-xs text-amber-700 font-semibold">⚙️ {timeRemaining}</span>
+                      </>
+                    )}
                   </div>
                 </div>
 

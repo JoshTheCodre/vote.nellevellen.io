@@ -21,7 +21,7 @@ import {
   updatePosition,
   deletePosition
 } from '@/lib/firebase';
-import { collection, getDocs, onSnapshot, query, doc } from 'firebase/firestore';
+import { collection, getDocs, getDoc, onSnapshot, query, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import toast from 'react-hot-toast';
 
@@ -79,60 +79,65 @@ export default function AdminPage() {
 
     setIsVerifying(true);
     try {
-      const adminDoc = await getDocs(collection(db, 'admin'));
-      let foundRole = null;
-      let foundEmail = '';
+      const roleDoc = await getDoc(doc(db, 'admin', 'role'));
       
-      adminDoc.forEach(doc => {
-        if (doc.id === 'role') {
-          const rolesData = doc.data();
-          const inputKey = adminKeyInput.trim();
-          
-          // Check Chairman key (must start with NACOS_CHAIRMAN_)
-          if (rolesData.chairman && inputKey === rolesData.chairman.key && inputKey.startsWith('NACOS_CHAIRMAN_')) {
-            foundRole = 'chairman';
-            foundEmail = rolesData.chairman.email || rolesData.chairman.name;
-          } 
-          // Check Secretary key (must start with NACOS_SECRETARY_)
-          else if (rolesData.secretary && inputKey === rolesData.secretary.key && inputKey.startsWith('NACOS_SECRETARY_')) {
-            foundRole = 'secretary';
-            foundEmail = rolesData.secretary.email || rolesData.secretary.name;
-          } 
-          // Check Committee keys (must start with NACOS_COMMITTEE_)
-          else if (rolesData.committee && Array.isArray(rolesData.committee)) {
-            const member = rolesData.committee.find((m: any) => m.key === inputKey && inputKey.startsWith('NACOS_COMMITTEE_'));
-            if (member) {
-              foundRole = 'committee';
-              foundEmail = member.email || member.name;
-            }
-          }
-        }
-      });
+      if (!roleDoc.exists()) {
+        toast.error('❌ Admin roles not configured');
+        setIsVerifying(false);
+        return;
+      }
 
-      if (foundRole) {
+      const roles = roleDoc.data();
+      const key = adminKeyInput.trim();
+      let role = null;
+      let email = '';
+
+      // Check chairman
+      if (roles.chairman?.key === key) {
+        role = 'chairman';
+        email = roles.chairman.email || roles.chairman.name;
+      }
+      // Check secretary
+      else if (roles.secretary?.key === key) {
+        role = 'secretary';
+        email = roles.secretary.email || roles.secretary.name;
+      }
+      // Check committee members
+      else if (roles.committee?.length) {
+        const member = roles.committee.find((m: any) => m.key === key);
+        if (member) {
+          role = 'committee';
+          email = member.email || member.name;
+        }
+      }
+
+      if (role) {
         setIsAuthenticated(true);
-        setUserRole(foundRole as 'chairman' | 'secretary' | 'committee');
-        setUserEmail(foundEmail);
-        const roleDisplay = foundRole === 'chairman' ? 'CHAIRMAN' : foundRole === 'secretary' ? 'SECRETARY-GENERAL' : 'COMMITTEE MEMBER';
-        toast.success(`✅ Access granted! (${roleDisplay})`);
+        setUserRole(role as 'chairman' | 'secretary' | 'committee');
+        setUserEmail(email);
+        const display = role === 'chairman' ? 'CHAIRMAN' : role === 'secretary' ? 'SECRETARY' : 'COMMITTEE';
+        toast.success(`✅ ${display} access granted!`);
       } else {
-        toast.error('❌ Invalid admin key or key format');
+        toast.error('❌ Invalid admin key');
       }
     } catch (error) {
       console.error('Error verifying key:', error);
-      toast.error('Error verifying admin key');
+      toast.error('❌ Verification failed');
     } finally {
       setIsVerifying(false);
     }
   };
 
-  // Permission checking functions
-  const canManageElection = () => userRole === 'chairman';
-  const canManageCandidates = () => userRole === 'chairman';
-  const canManagePositions = () => userRole === 'chairman' || userRole === 'secretary';
-  const canDownloadResults = () => userRole === 'chairman' || userRole === 'committee';
-  const canViewSettings = () => userRole === 'chairman';
-  const canStartElection = () => userRole === 'chairman';
+  // Permission functions (simplified)
+  const isChairman = () => userRole === 'chairman';
+  const isSecretary = () => userRole === 'secretary';
+  const isCommittee = () => userRole === 'committee';
+  const canManageElection = () => isChairman();
+  const canManageCandidates = () => isChairman();
+  const canManagePositions = () => isChairman() || isSecretary();
+  const canDownloadResults = () => isChairman() || isCommittee();
+  const canViewSettings = () => isChairman();
+  const canStartElection = () => isChairman();
 
   useEffect(() => {
     // Set up real-time listener for election config

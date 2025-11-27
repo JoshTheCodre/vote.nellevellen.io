@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NACOS Voting Reset Tool</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      min-height: 100vh;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 600px;
+      width: 100%;
+      padding: 40px;
+    }
+    h1 {
+      color: #1a202c;
+      margin-bottom: 10px;
+      font-size: 26px;
+    }
+    .subtitle {
+      color: #718096;
+      margin-bottom: 25px;
+      font-size: 14px;
+    }
+    .warning {
+      background: #fed7d7;
+      border: 2px solid #fc8181;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    .warning-title {
+      color: #742a2a;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .warning-text {
+      color: #742a2a;
+      font-size: 14px;
+    }
+    .info-box {
+      background: #bee3f8;
+      border: 2px solid #90cdf4;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    .info-title {
+      color: #2c5282;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    .info-list {
+      color: #2c5282;
+      font-size: 14px;
+      margin-left: 20px;
+    }
+    .info-list li {
+      margin: 5px 0;
+    }
+    .btn {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: white;
+      padding: 16px 32px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      margin: 10px 0;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(245, 87, 108, 0.4);
+    }
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .status {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-top: 15px;
+      font-size: 14px;
+      display: none;
+    }
+    .status.show { display: block; }
+    .status.success {
+      background: #c6f6d5;
+      color: #22543d;
+      border: 1px solid #9ae6b4;
+    }
+    .status.error {
+      background: #fed7d7;
+      color: #742a2a;
+      border: 1px solid #fc8181;
+    }
+    .status.info {
+      background: #bee3f8;
+      color: #2c5282;
+      border: 1px solid #90cdf4;
+    }
+    .stats {
+      background: #f7fafc;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+      display: none;
+    }
+    .stats.show { display: block; }
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .stat-item:last-child { border-bottom: none; }
+    .stat-label { color: #4a5568; font-weight: 600; }
+    .stat-value { color: #2d3748; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔄 Voting Reset Tool</h1>
+    <p class="subtitle">Reset all voting data for testing</p>
+    
+    <div class="warning">
+      <div class="warning-title">⚠️ WARNING - DESTRUCTIVE ACTION</div>
+      <div class="warning-text">
+        This will permanently delete all votes and reset all users' voting status.
+        This action cannot be undone!
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-title">📋 What This Will Do:</div>
+      <ul class="info-list">
+        <li>Delete all votes from the database</li>
+        <li>Reset all users' hasVoted status to false</li>
+        <li>Clear all users' votedPositions arrays</li>
+        <li>Preserve user accounts and profiles</li>
+        <li>Preserve positions and candidates</li>
+      </ul>
+    </div>
+
+    <button class="btn" onclick="resetVoting()" id="reset-btn">
+      🗑️ Reset All Voting Data
+    </button>
+
+    <div class="status" id="status"></div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+    import { getFirestore, collection, getDocs, deleteDoc, doc, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyB-JDL9fbNT96zj41W3jJ1fn2K72a0hSLs",
+      authDomain: "nacos-rivers-voting.firebaseapp.com",
+      projectId: "nacos-rivers-voting",
+      storageBucket: "nacos-rivers-voting.firebasestorage.app",
+      messagingSenderId: "610862257582",
+      appId: "1:610862257582:web:6196f65ababa3c2536e43f"
+    };
+
+    let app, db;
+    try {
+      app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      console.log('✅ Firebase initialized');
+      showStatus('✅ Connected to Firebase - Ready to reset', 'success');
+    } catch (error) {
+      console.error('Firebase error:', error);
+      showStatus('❌ Firebase connection failed: ' + error.message, 'error');
+    }
+
+    function showStatus(message, type) {
+      const el = document.getElementById('status');
+      el.textContent = message;
+      el.className = `status show ${type}`;
+    }
+
+    function showStats(stats) {
+      const el = document.getElementById('stats');
+      el.innerHTML = `
+        <div class="stat-item">
+          <span class="stat-label">Votes Deleted:</span>
+          <span class="stat-value">${stats.votesDeleted}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Users Reset:</span>
+          <span class="stat-value">${stats.usersReset}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Time Taken:</span>
+          <span class="stat-value">${stats.duration}s</span>
+        </div>
+      `;
+      el.classList.add('show');
+    }
+
+    window.resetVoting = async function() {
+      // Double confirmation
+      const confirmed = confirm(
+        '⚠️ ARE YOU SURE?\n\n' +
+        'This will DELETE ALL VOTES and reset all users.\n\n' +
+        'This action CANNOT be undone!\n\n' +
+        'Click OK to proceed, or Cancel to abort.'
+      );
+
+      if (!confirmed) {
+        showStatus('❌ Reset cancelled by user', 'info');
+        return;
+      }
+
+      const btn = document.getElementById('reset-btn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Resetting...';
+      
+      const startTime = Date.now();
+      let votesDeleted = 0;
+      let usersReset = 0;
+
+      try {
+        showStatus('⏳ Step 1/2: Deleting all votes...', 'info');
+
+        // Delete all votes
+        const votesSnapshot = await getDocs(collection(db, 'votes'));
+        const voteBatch = writeBatch(db);
+        
+        votesSnapshot.forEach((voteDoc) => {
+          voteBatch.delete(voteDoc.ref);
+          votesDeleted++;
+        });
+
+        await voteBatch.commit();
+        console.log(`✅ Deleted ${votesDeleted} votes`);
+
+        showStatus('⏳ Step 2/2: Resetting all users...', 'info');
+
+        // Reset all users
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        const userBatch = writeBatch(db);
+        
+        usersSnapshot.forEach((userDoc) => {
+          userBatch.update(userDoc.ref, {
+            hasVoted: false,
+            votedPositions: []
+          });
+          usersReset++;
+        });
+
+        await userBatch.commit();
+        console.log(`✅ Reset ${usersReset} users`);
+
+        const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+
+        showStats({
+          votesDeleted,
+          usersReset,
+          duration
+        });
+
+        showStatus(
+          `✅ Reset Complete! ${votesDeleted} votes deleted, ${usersReset} users reset in ${duration}s`,
+          'success'
+        );
+
+        btn.textContent = '✅ Reset Complete!';
+        setTimeout(() => {
+          btn.textContent = '🗑️ Reset All Voting Data';
+          btn.disabled = false;
+        }, 5000);
+
+      } catch (error) {
+        console.error('Reset error:', error);
+        showStatus('❌ Reset failed: ' + error.message, 'error');
+        btn.textContent = '❌ Reset Failed - Try Again';
+        btn.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

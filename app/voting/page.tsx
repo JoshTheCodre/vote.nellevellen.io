@@ -44,7 +44,8 @@ export default function VotingPage() {
     const checkUserStatus = async () => {
       const user = await getUser(storedVoterId);
       if (user?.hasVoted) {
-        toast.error('You have already completed your voting session.');
+        toast.error('You have already completed your voting session. Logging you out...');
+        // Clear all session data (logout)
         sessionStorage.clear();
         router.push('/');
         return;
@@ -53,9 +54,21 @@ export default function VotingPage() {
       // Check if election config is set
       const config = await getElectionConfig();
       if (!config || !config.startTime || !config.endTime) {
-        toast.error('Election has not been configured yet. Please contact admin.');
+        toast.error('Election has not been configured yet. Logging you out...');
+        // Clear all session data (logout)
         sessionStorage.clear();
         router.push('/');
+        return;
+      }
+
+      // Check if election has ended
+      const now = new Date();
+      const endTime = new Date(config.endTime);
+      if (!config.isActive || now > endTime) {
+        toast.error('Election has ended. Logging you out and redirecting to results...');
+        // Clear all session data (logout)
+        sessionStorage.clear();
+        router.push('/results');
         return;
       }
 
@@ -78,8 +91,10 @@ export default function VotingPage() {
           
           // Check if election is stopped or time expired
           if (!config.isActive || now > endTime) {
-            toast.error('Election has ended. Redirecting to results...');
+            toast.error('Election has ended. Logging you out and redirecting to results...');
             sessionStorage.removeItem('onVotingPage');
+            // Clear all session data (logout)
+            sessionStorage.clear();
             setTimeout(() => {
               router.push('/results');
             }, 2000);
@@ -167,9 +182,13 @@ export default function VotingPage() {
     if (voterId) {
       try {
         await markUserAsVoted(voterId);
+        toast.success('✓ Voting completed! Logging you out...');
+        // Clear all session data (logout)
         sessionStorage.removeItem('onVotingPage');
         sessionStorage.clear();
-        router.push('/results');
+        setTimeout(() => {
+          router.push('/results');
+        }, 1000);
       } catch (error) {
         console.error('Error marking user as voted:', error);
         toast.error('Error completing voting');
